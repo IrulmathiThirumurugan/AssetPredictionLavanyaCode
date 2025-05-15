@@ -69,7 +69,8 @@ fetchData123();
 // Populate the table with data
 async function populateTable() {
     var Url_path = "http://127.0.0.1:5000/dashboardpqgea";
-    var jsonData = await getdata('https://piranha-robust-polliwog.ngrok-free.app/dashboardpqgea');
+    var jsonData = await getdata('http://127.0.0.1:5000/dashboardpqgea');
+    // var jsonData = await getdata('https://piranha-robust-polliwog.ngrok-free.app/dashboardpqgea');
     // console.log(jsonData);
     const tableBody = document.querySelector('#predQuantityTable tbody');
     const tableBody1 = document.querySelector('#EOLTable');
