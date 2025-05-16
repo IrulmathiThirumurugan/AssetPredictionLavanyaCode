@@ -48,7 +48,7 @@ engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_N
 CORS(app)
 # Path to the Excel file (make sure it's in the same directory as the app.py)
 # EXCEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data.xlsx')
-EXCEL_FILE_PATH = r'C:\Users\irulm\OneDrive\Desktop\asset\asset_ver1\req\data\srp_new.xlsx'  
+EXCEL_FILE_PATH = r'D:\GenAI\AssetPrediction_django\AssetPredictionLavanyaCode\asset_ver1\req\data\srp_new.xlsx'  
 
 
 
@@ -73,10 +73,14 @@ def get_excel_data():
         # query = f"SELECT * FROM {TABLE_NAME} WHERE Trend_fit <> 0 ;" # Modify query as needed
         # df = pd.read_sql(query, con=engine)
         # df = df[~df['Location'].str.endswith('REC')]
-        df = df[['Part_Number', 'Location', 'Location_City', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)"]]
+        df = df[['Part_Number', 'Location', 'Location_City', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)",'avg_demand_per_month','Pending_Task','Instock','quantity_on_order']]
         df["Difference"]=df["Trend_fit"]-df["quantity_to_order(calc)"]
         df["Amount"] = (df["quantity_to_order(calc)"] * df["Price"]).round(2)
         df["Difference"]= df['Difference'].apply(lambda x: f"{int(x):+d}" if pd.notnull(x) else "")
+        
+        # Round avg_demand_per_month to two decimal places
+        df["avg_demand_per_month"] = df["avg_demand_per_month"].round(2)
+        
         df = df.rename(columns={'Part_Number': 'Part_Number', 'Location': 'City', 'quantity_to_order(calc)' : 'Quantity', 'Price' : 'Unit_Cost', 'Amount' : 'Total_Cost'})
         df = df.sort_values(by='Quantity', ascending=False, inplace=False)
         # Convert the dataframe to a dictionary (list of dictionaries) to send as JSON
@@ -88,7 +92,7 @@ def get_excel_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-EXCEL_FILE_PATH1 = r'C:\Users\irulm\OneDrive\Desktop\asset\asset_ver1\req\data\gea_new.xlsx'  
+EXCEL_FILE_PATH1 = r'D:\GenAI\AssetPrediction_django\AssetPredictionLavanyaCode\asset_ver1\req\data\gea_new.xlsx'  
 @app.route('/dashboardpqgea', methods=['GET'])
 def get_excel_data6():
     if not os.path.exists(EXCEL_FILE_PATH1):
@@ -97,10 +101,13 @@ def get_excel_data6():
     try:
         # Read the Excel file using pandas
         df = pd.read_excel(EXCEL_FILE_PATH1)
-        df = df[['Part_Number', 'Location', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)"]]
+        df = df[['Part_Number', 'Location', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)",'avg_demand_per_month','Pending_Task','Instock','quantity_on_order']]
         df["Difference"]=df["Trend_fit"]-df["quantity_to_order(calc)"]
         df["Amount"] = (df["quantity_to_order(calc)"] * df["Price"]).round(2)
         df["Difference"]= df['Difference'].apply(lambda x: f"{int(x):+d}" if pd.notnull(x) else "")
+        # Round avg_demand_per_month to two decimal places
+        df["avg_demand_per_month"] = df["avg_demand_per_month"].round(2)
+        
         df = df.rename(columns={'Part_Number': 'Part_Number', 'Location': 'City', 'quantity_to_order(calc)' : 'Quantity', 'Price' : 'Unit_Cost', 'Amount' : 'Total_Cost'})
         # df = df[['Part_Number', 'Location', 'Location City', 'ModelName', 'Trend_fit', 'Price', 'total_price_calc']]
         # df = df.rename(columns={'Part_Number': 'Part Number', 'Location City': 'City', 'Model Desgination' : 'Model Name', 'Trend_fit' : 'Quantity', 'Price' : 'Unit Cost', 'total_price_calc' : 'Total Cost'})
