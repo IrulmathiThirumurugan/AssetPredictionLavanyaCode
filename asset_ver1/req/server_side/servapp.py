@@ -1,4 +1,6 @@
-from flask import Flask, jsonify
+from datetime import datetime
+from io import BytesIO
+from flask import Flask, jsonify, request, send_file
 import pandas as pd
 import os
 from flask_cors import CORS
@@ -50,15 +52,95 @@ CORS(app)
 # EXCEL_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data.xlsx')
 EXCEL_FILE_PATH = r'D:\GenAI\AssetPrediction_django\AssetPredictionLavanyaCode\asset_ver1\req\data\srp_new.xlsx'  
 
+@app.route('/update_excel', methods=['POST'])
+def update_excel():
+    if not os.path.exists(EXCEL_FILE_PATH):
+        return jsonify({"error": "Excel file not found."}), 404
 
+    try:
+        # Read the Excel file
+        df = pd.read_excel(EXCEL_FILE_PATH)
 
+        # Add "Final Total Qty" column if it doesn't exist
+        if 'Final Total Qty' not in df.columns:
+            df['Final Total Qty'] = 0
 
+        # Get the data from the request
+        data = request.json
 
+        # Update the DataFrame with the new values
+        for item in data:
+            part_number = item['Part_Number']
+            location = item['City']
+            # Find the row to update
+            df.loc[(df['Part_Number'] == part_number) & (df['Location'] == location), 'Wipro Team Suggestion'] = item['Wipro Team Suggestion']
+            df.loc[(df['Part_Number'] == part_number) & (df['Location'] == location), 'Country Suggestion'] = item['Country Suggestion']
+            df.loc[(df['Part_Number'] == part_number) & (df['Location'] == location), 'Final Total Qty'] = item['Final Total Qty']
 
+        # Save the updated DataFrame back to the Excel file
+        df.to_excel(EXCEL_FILE_PATH, index=False)
 
+        return jsonify({"message": "Excel file updated successfully."})
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/download_excel', methods=['GET'])
+def download_excel():
+    if not os.path.exists(EXCEL_FILE_PATH):
+        return jsonify({"error": "Excel file not found."}), 404
 
+    try:
+        # Create the filename with the specified format
+        current_date = datetime.now().strftime("%d%m%Y")
+        filename = f"PL–AISRP–{current_date}.xlsx"
+
+        return send_file(EXCEL_FILE_PATH, as_attachment=True, download_name=filename)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/convert', methods=['GET'])
+def convert_excel():
+    try:
+        # Read Excel file from the global path
+        df = pd.read_excel(EXCEL_FILE_PATH, sheet_name='Sheet1')
+        df = df[['Location', 'Part_Number', 'Pending_Task', 'Instock', 'quantity_on_order', 'Final Total Qty', 'Proposal Id', 'ModelName', 'CC', 'Location_City', 'Order Calculation \nBased On']]
+        
+        # Rename columns
+        df.rename(columns={
+            'Pending_Task': 'Demand_Qty',
+            'Instock': 'Qty_in_Stock',
+            'quantity_on_order': 'Qty_in_Order',
+            'Final Total Qty': 'Qty_to_Order',
+            'ModelName': 'Model_Short_Name'
+        }, inplace=True)
+        
+        # Filter rows
+        df = df[(df['Order Calculation \nBased On'] != "Guaranteed Essential Accessories") & (df['Qty_to_Order'] != 0)]
+        
+        # Add current date
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        df['Request_Date'] = current_date
+        
+        # Select columns
+        expected_out_order = ['Request_Date', 'Location', 'Part_Number', 'Demand_Qty', 'Qty_in_Stock', 'Qty_in_Order', 'Qty_to_Order', 'Proposal Id', 'Model_Short_Name', 'CC', 'Location_City']
+        available_columns = [col for col in expected_out_order if col in df.columns]
+        df = df[available_columns]
+        
+        # Write to an in-memory bytes buffer
+        output = BytesIO()
+        df.to_excel(output, index=False, engine='xlsxwriter')
+        output.seek(0)  # Rewind the buffer
+
+        # Create the filename with the specified format
+        filename = f"PL-AISRP-{datetime.now().strftime('%d%m%Y')}-DAAS.xlsx"
+
+        # Send file
+        return send_file(output, as_attachment=True, download_name=filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/dashboardpq', methods=['GET'])
 def get_excel_data():
     if not os.path.exists(EXCEL_FILE_PATH):
@@ -73,9 +155,9 @@ def get_excel_data():
         # query = f"SELECT * FROM {TABLE_NAME} WHERE Trend_fit <> 0 ;" # Modify query as needed
         # df = pd.read_sql(query, con=engine)
         # df = df[~df['Location'].str.endswith('REC')]
-        df = df[['Part_Number', 'Location', 'Location_City', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)",'avg_demand_per_month','Pending_Task','Instock','quantity_on_order']]
+        df = df[['Part_Number', 'Location', 'Location_City', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)",'avg_demand_per_month','Pending_Task','Instock','quantity_on_order','Wipro Team Suggestion','Country Suggestion','Final Total Qty']]
         df["Difference"]=df["Trend_fit"]-df["quantity_to_order(calc)"]
-        df["Amount"] = (df["quantity_to_order(calc)"] * df["Price"]).round(2)
+        df["Amount"] = (df["Final Total Qty"] * df["Price"]).round(2)
         df["Difference"]= df['Difference'].apply(lambda x: f"{int(x):+d}" if pd.notnull(x) else "")
         
         # Round avg_demand_per_month to two decimal places
@@ -101,7 +183,7 @@ def get_excel_data6():
     try:
         # Read the Excel file using pandas
         df = pd.read_excel(EXCEL_FILE_PATH1)
-        df = df[['Part_Number', 'Location', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)",'avg_demand_per_month','Pending_Task','Instock','quantity_on_order']]
+        df = df[['Part_Number', 'Location', 'ModelName', 'Trend_fit', 'Price', 'Amount',"quantity_to_order(calc)",'avg_demand_per_month','Pending_Task','Instock','quantity_on_order','Wipro Team Suggestion','Country Suggestion']]
         df["Difference"]=df["Trend_fit"]-df["quantity_to_order(calc)"]
         df["Amount"] = (df["quantity_to_order(calc)"] * df["Price"]).round(2)
         df["Difference"]= df['Difference'].apply(lambda x: f"{int(x):+d}" if pd.notnull(x) else "")
